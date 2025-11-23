@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 // Use the /cf-worker build for Cloudflare Workers environment
-import { Innertube } from 'youtubei.js/cf-worker';
+import { Innertube, ClientType } from 'youtubei.js/cf-worker';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -53,6 +53,8 @@ async function getInnertube() {
       generate_session_locally: true,
       fetch: fetch.bind(globalThis),
       enable_session_cache: true,
+      client_type: ClientType.IOS,
+      device_category: 'mobile',
     });
   }
   return yt;
@@ -187,14 +189,18 @@ app.post('/api/video/download', async (c) => {
       quality: 'best',
     });
 
-    if (!combinedFormat || !combinedFormat.url) {
+    const formatUrl = await combinedFormat.decipher(yt.session.player);
+
+    if (!formatUrl) {
       throw new Error('No suitable combined video+audio format found');
     }
 
-    console.log('Downloading URL directly:', combinedFormat.url);
+    console.log('Downloading URL directly:', formatUrl);
 
     // Proxy the video stream directly from YouTube's servers
-    const videoResponse = await fetch(combinedFormat.url, {
+    // Note: formatUrl is a string (from decipher), but TS might infer it as string | undefined.
+    // decipher() returns string, so we can assert or just pass it.
+    const videoResponse = await fetch(formatUrl, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
