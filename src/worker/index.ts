@@ -18,13 +18,19 @@ async function getInnertube() {
 // Extract video ID from URL
 function extractVideoId(url: string): string {
   const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
+    // Standard YouTube URLs with optional protocol and www
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([^&\n?#]+)/,
+    // Short YouTube URLs
+    /(?:https?:\/\/)?youtu\.be\/([^&\n?#]+)/,
+    // Mobile YouTube URLs
+    /(?:https?:\/\/)?(?:m\.)?youtube\.com\/watch\?v=([^&\n?#]+)/,
+    // Just the video ID (11 characters)
     /^([a-zA-Z0-9_-]{11})$/,
   ];
 
   for (const pattern of patterns) {
     const match = url.match(pattern);
-    if (match) return match[1];
+    if (match && match[1]) return match[1];
   }
 
   throw new Error('Invalid YouTube URL or video ID');
