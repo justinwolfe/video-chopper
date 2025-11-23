@@ -43,14 +43,19 @@ app.get('/api/test/:videoId', async (c) => {
   }
 });
 
-// Create Innertube instance for each request
+// Global variable to cache the Innertube instance across requests
+let yt: Innertube | undefined;
+
+// Create Innertube instance (cached)
 async function getInnertube() {
-  return await Innertube.create({
-    generate_session_locally: true,
-    fetch: fetch.bind(globalThis),
-    // Remove specific client type to avoid "string did not match expected pattern"
-    // This error often comes from mismatch between client type and expected session data
-  });
+  if (!yt) {
+    yt = await Innertube.create({
+      generate_session_locally: true,
+      fetch: fetch.bind(globalThis),
+      enable_session_cache: true,
+    });
+  }
+  return yt;
 }
 
 // Extract video ID from URL
