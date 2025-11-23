@@ -1,18 +1,15 @@
 import { Hono } from "hono";
-import { Innertube, UniversalCache } from "youtubei.js";
+// Use the /web build for browser-like environments (Cloudflare Workers)
+import { Innertube } from "youtubei.js/web";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.get("/api/", (c) => c.json({ name: "Cloudflare" }));
 
-// Create Innertube instance for each request to avoid caching issues
+// Create Innertube instance for each request
 async function getInnertube() {
-  // Disable caching to avoid "Illegal invocation" errors in Workers
-  // UniversalCache uses indexedDB/fs which aren't available in Workers
-  return await Innertube.create({
-    cache: new UniversalCache(false),
-    generate_session_locally: true,
-  });
+  // Use /web build which is compatible with Workers environment
+  return await Innertube.create();
 }
 
 // Extract video ID from URL
