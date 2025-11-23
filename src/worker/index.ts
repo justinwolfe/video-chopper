@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-// Use the /web build for browser-like environments (Cloudflare Workers)
-import { Innertube } from "youtubei.js/web";
+// Use the /cf-worker build for Cloudflare Workers environment
+import { Innertube } from "youtubei.js/cf-worker";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -40,8 +40,10 @@ app.get("/api/test/:videoId", async (c) => {
 
 // Create Innertube instance for each request
 async function getInnertube() {
-  // Use /web build which is compatible with Workers environment
-  return await Innertube.create();
+  return await Innertube.create({
+    generate_session_locally: true,
+    fetch: fetch.bind(globalThis)
+  });
 }
 
 // Extract video ID from URL
