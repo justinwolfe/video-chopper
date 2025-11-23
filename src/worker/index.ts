@@ -6,6 +6,38 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.get("/api/", (c) => c.json({ name: "Cloudflare" }));
 
+// Test endpoint for debugging
+app.get("/api/test/:videoId", async (c) => {
+  const videoId = c.req.param("videoId");
+
+  try {
+    console.log(`[TEST] Testing video ID: ${videoId}`);
+
+    const yt = await getInnertube();
+    console.log('[TEST] Innertube instance created');
+
+    const info = await yt.getInfo(videoId);
+    console.log('[TEST] Video info fetched');
+
+    return c.json({
+      success: true,
+      videoId,
+      title: info.basic_info.title,
+      author: info.basic_info.author,
+      duration: info.basic_info.duration,
+      formatCount: (info.streaming_data?.formats?.length || 0) + (info.streaming_data?.adaptive_formats?.length || 0),
+    });
+  } catch (error: any) {
+    console.error('[TEST] Error:', error);
+    return c.json({
+      success: false,
+      videoId,
+      error: error.message,
+      stack: error.stack,
+    }, 500);
+  }
+});
+
 // Create Innertube instance for each request
 async function getInnertube() {
   // Use /web build which is compatible with Workers environment
