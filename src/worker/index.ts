@@ -52,7 +52,6 @@ async function getInnertube() {
     yt = await Innertube.create({
       generate_session_locally: true,
       fetch: fetch.bind(globalThis),
-      enable_session_cache: true,
       client_type: ClientType.IOS,
       device_category: 'mobile',
     });
