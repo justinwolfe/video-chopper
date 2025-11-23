@@ -168,18 +168,49 @@ app.post('/api/video/download', async (c) => {
 
     console.log(`Downloading video: ${videoId} with quality: ${quality}`);
 
-    // Download with best quality, combining video and audio
-    const stream = await yt.download(videoId, {
-      type: 'video+audio', // Get both video and audio
-      quality: quality,
-      format: 'mp4',
+    // If quality is 'best' or undefined, we'll just grab the single best format
+    // that has both video and audio (usually 360p/720p mp4) because muxing in
+    // Cloudflare Workers (video+audio separate streams) is not possible without ffmpeg.
+    // So we force 'video+audio' type which Innertube should resolve to a single pre-mixed file if possible.
+
+    // We need to be careful with large downloads in Workers.
+    // If it's a large file, we might want to just proxy the stream.
+
+    const info = await yt.getInfo(videoId);
+    const combinedFormat = info.chooseFormat({
+      type: 'video+audio',
+      quality: 'best',
     });
 
-    // Convert readable stream to response
-    return new Response(stream as unknown as BodyInit, {
+    if (!combinedFormat || !combinedFormat.url) {
+      throw new Error('No suitable combined video+audio format found');
+    }
+
+    console.log('Downloading URL directly:', combinedFormat.url);
+
+    // Proxy the video stream directly from YouTube's servers
+    const videoResponse = await fetch(combinedFormat.url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Range: 'bytes=0-', // Request full content
+      },
+    });
+
+    if (!videoResponse.ok) {
+      throw new Error(
+        `Failed to fetch video stream: ${videoResponse.status} ${videoResponse.statusText}`
+      );
+    }
+
+    // Return the stream directly
+    return new Response(videoResponse.body, {
       headers: {
         'Content-Type': 'video/mp4',
-        'Content-Disposition': `attachment; filename="video_${videoId}.mp4"`,
+        'Content-Disposition': `attachment; filename="${
+          info.basic_info.title || videoId
+        }.mp4"`,
+        'Content-Length': videoResponse.headers.get('Content-Length') || '',
       },
     });
   } catch (error) {
