@@ -129,7 +129,7 @@ function App() {
     <div className="container">
       <h1>Video Downloader</h1>
       <p className="subtitle">
-        Powered by Cloudflare Workers + @ybd-project/ytdl-core
+        Powered by Cloudflare Workers + YouTube.js
       </p>
 
       <div className="input-section">
