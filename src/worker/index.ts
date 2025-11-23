@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 // Use the /cf-worker build for Cloudflare Workers environment
-import { Innertube, ClientType } from 'youtubei.js/cf-worker';
+import { Innertube } from 'youtubei.js/cf-worker';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -48,13 +48,38 @@ async function getInnertube() {
   return await Innertube.create({
     generate_session_locally: true,
     fetch: fetch.bind(globalThis),
-    client_type: ClientType.IOS,
-    device_category: 'mobile',
+    // Remove specific client type to avoid "string did not match expected pattern"
+    // This error often comes from mismatch between client type and expected session data
   });
 }
 
 // Extract video ID from URL
 function extractVideoId(url: string): string {
+  try {
+    // First try creating a URL object to handle various relative/absolute paths if needed
+    // but given the input is likely a full URL string, we can just parse it.
+    const urlObj = new URL(url);
+
+    // Handle youtu.be short URLs
+    if (urlObj.hostname === 'youtu.be') {
+      return urlObj.pathname.slice(1);
+    }
+
+    // Handle youtube.com/watch URLs
+    if (
+      urlObj.hostname.includes('youtube.com') &&
+      urlObj.pathname === '/watch'
+    ) {
+      const videoId = urlObj.searchParams.get('v');
+      if (videoId) return videoId;
+    }
+
+    // Fallback to regex for other formats or if URL parsing fails/is insufficient
+  } catch (e: unknown) {
+    console.error('Error parsing URL:', e);
+    // If URL parsing fails, proceed to regex
+  }
+
   const patterns = [
     // Standard YouTube URLs with optional protocol and www
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([^&\n?#]+)/,
