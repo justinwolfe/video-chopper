@@ -11,10 +11,14 @@ interface VideoFormat {
   hasAudio: boolean;
   container: string;
   contentLength: string;
-  url: string;
+  bitrate: number;
+  fps: number;
+  width: number;
+  height: number;
 }
 
 interface VideoInfo {
+  videoId: string;
   title: string;
   author: string;
   lengthSeconds: string;
@@ -63,46 +67,28 @@ function App() {
     }
   };
 
-  const handleDownload = async (quality: string = "highest") => {
-    if (!url.trim()) {
-      setError("Please enter a video URL");
-      return;
+  const handleWatchOnYoutube = () => {
+    if (videoInfo) {
+      window.open(`https://www.youtube.com/watch?v=${videoInfo.videoId}`, '_blank');
     }
+  };
 
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch("/api/video/download", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url, quality }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to download video");
-      }
-
-      // Create a blob from the response
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.download = videoInfo?.title
-        ? `${videoInfo.title.replace(/[^a-z0-9]/gi, "_")}.mp4`
-        : "video.mp4";
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(downloadUrl);
-      document.body.removeChild(a);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
-    } finally {
-      setLoading(false);
+  const handleCopyVideoId = () => {
+    if (videoInfo) {
+      navigator.clipboard.writeText(videoInfo.videoId);
+      alert('Video ID copied to clipboard!');
     }
+  };
+
+  const getBestFormat = () => {
+    if (!videoInfo) return null;
+
+    // Find best video+audio combined format
+    const combined = videoInfo.formats
+      .filter(f => f.hasVideo && f.hasAudio)
+      .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+
+    return combined || videoInfo.formats[0];
   };
 
   const formatBytes = (bytes: string) => {
@@ -176,18 +162,40 @@ function App() {
           </div>
 
           <div className="download-section">
-            <h3>Quick Download</h3>
-            <button
-              onClick={() => handleDownload("highest")}
-              disabled={loading}
-              className="download-button primary"
-            >
-              Download Best Quality
-            </button>
+            <h3>Actions</h3>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleWatchOnYoutube}
+                className="download-button primary"
+              >
+                ▶️ Watch on YouTube
+              </button>
+              <button
+                onClick={handleCopyVideoId}
+                className="download-button"
+              >
+                📋 Copy Video ID
+              </button>
+            </div>
+            {getBestFormat() && (
+              <div style={{ marginTop: '15px', padding: '15px', background: '#f0f0f0', borderRadius: '4px' }}>
+                <strong>Best Available:</strong> {getBestFormat()?.quality} {getBestFormat()?.container.toUpperCase()}
+                {' '}({formatBytes(getBestFormat()!.contentLength)})
+                <div style={{ fontSize: '14px', marginTop: '5px', color: '#666' }}>
+                  {getBestFormat()?.width && getBestFormat()?.height &&
+                    `${getBestFormat()?.width}x${getBestFormat()?.height} • `}
+                  {getBestFormat()?.fps && `${getBestFormat()?.fps}fps • `}
+                  {getBestFormat()?.bitrate && `${Math.round(getBestFormat()!.bitrate / 1000)}kbps`}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="formats-section">
             <h3>Available Formats ({videoInfo.formats.length})</h3>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
+              Use external tools like <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener noreferrer">yt-dlp</a> to download specific formats
+            </p>
             <div className="formats-list">
               {videoInfo.formats
                 .filter((f) => f.hasVideo && f.hasAudio)
@@ -209,16 +217,23 @@ function App() {
                           {formatBytes(format.contentLength)}
                         </span>
                       )}
+                      <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                        {format.width && format.height && `${format.width}x${format.height} • `}
+                        {format.fps && `${format.fps}fps • `}
+                        {format.bitrate && `${Math.round(format.bitrate / 1000)}kbps • `}
+                        itag: {format.itag}
+                      </div>
                     </div>
-                    <a
-                      href={format.url}
-                      download
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`yt-dlp -f ${format.itag} https://www.youtube.com/watch?v=${videoInfo.videoId}`);
+                        alert('Command copied! Paste in terminal to download this format.');
+                      }}
                       className="download-link"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      style={{ fontSize: '14px', padding: '6px 12px' }}
                     >
-                      Download
-                    </a>
+                      📋 Copy Command
+                    </button>
                   </div>
                 ))}
             </div>
