@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Chopper - Client-Side Demo</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-top: 0;
+      color: #333;
+    }
+    .input-group {
+      margin: 20px 0;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0052a3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .metadata {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+    .metadata h2 {
+      margin-top: 0;
+    }
+    .formats {
+      margin-top: 20px;
+    }
+    .format {
+      padding: 15px;
+      margin: 10px 0;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .format-info {
+      flex: 1;
+    }
+    .format-quality {
+      font-weight: bold;
+      color: #0066cc;
+    }
+    .format-details {
+      font-size: 14px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .error {
+      color: #d32f2f;
+      padding: 15px;
+      background: #ffebee;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .success {
+      color: #388e3c;
+      padding: 15px;
+      background: #e8f5e9;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 Video Chopper - Client-Side Demo</h1>
+    <p>Enter a YouTube URL to get video metadata and download options.</p>
+
+    <div class="input-group">
+      <input
+        type="text"
+        id="videoUrl"
+        placeholder="https://www.youtube.com/watch?v=..."
+        value="https://www.youtube.com/watch?v=Mh1hKt5kQ_4"
+      >
+      <button onclick="fetchMetadata()">Get Video Info</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script type="module">
+    const API_URL = 'http://localhost:8787';
+
+    window.fetchMetadata = async function() {
+      const url = document.getElementById('videoUrl').value;
+      const resultDiv = document.getElementById('result');
+
+      if (!url) {
+        resultDiv.innerHTML = '<div class="error">Please enter a YouTube URL</div>';
+        return;
+      }
+
+      resultDiv.innerHTML = '<div class="loading">Fetching video metadata...</div>';
+
+      try {
+        const response = await fetch(`${API_URL}/api/video/info`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to fetch metadata');
+        }
+
+        const data = await response.json();
+        displayMetadata(data);
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    };
+
+    function displayMetadata(data) {
+      const resultDiv = document.getElementById('result');
+
+      // Group formats
+      const videoAudioFormats = data.formats.filter(f => f.hasVideo && f.hasAudio);
+      const videoOnlyFormats = data.formats.filter(f => f.hasVideo && !f.hasAudio);
+      const audioOnlyFormats = data.formats.filter(f => !f.hasVideo && f.hasAudio);
+
+      let html = `
+        <div class="metadata">
+          <h2>${data.title}</h2>
+          <div class="format-details">
+            <strong>Author:</strong> ${data.author}<br>
+            <strong>Duration:</strong> ${data.lengthSeconds}s<br>
+            <strong>Views:</strong> ${parseInt(data.viewCount).toLocaleString()}<br>
+            <strong>Video ID:</strong> ${data.videoId}
+          </div>
+          ${data.thumbnail ? `<br><img src="${data.thumbnail}" style="max-width: 100%; border-radius: 4px;">` : ''}
+        </div>
+
+        <div class="formats">
+          <h3>Available Formats (${data.formats.length})</h3>
+          <p><em>Note: URLs require client-side deciphering. For now, showing format information.</em></p>
+      `;
+
+      if (videoAudioFormats.length > 0) {
+        html += `<h4>Video + Audio (Combined)</h4>`;
+        videoAudioFormats.forEach(format => {
+          const sizeInMB = (parseInt(format.contentLength) / 1024 / 1024).toFixed(2);
+          html += `
+            <div class="format">
+              <div class="format-info">
+                <div class="format-quality">[${format.itag}] ${format.quality}</div>
+                <div class="format-details">
+                  ${format.mimeType} • ${sizeInMB} MB
+                  ${format.width && format.height ? ` • ${format.width}x${format.height}` : ''}
+                  ${format.fps ? ` • ${format.fps}fps` : ''}
+                </div>
+              </div>
+              <button onclick="copyVideoId('${data.videoId}', ${format.itag})">Copy Format Info</button>
+            </div>
+          `;
+        });
+      }
+
+      if (videoOnlyFormats.length > 0) {
+        html += `<h4>Video Only (Top 5)</h4>`;
+        videoOnlyFormats.slice(0, 5).forEach(format => {
+          const sizeInMB = (parseInt(format.contentLength) / 1024 / 1024).toFixed(2);
+          html += `
+            <div class="format">
+              <div class="format-info">
+                <div class="format-quality">[${format.itag}] ${format.quality}</div>
+                <div class="format-details">
+                  ${format.mimeType} • ${sizeInMB} MB
+                  ${format.width && format.height ? ` • ${format.width}x${format.height}` : ''}
+                  ${format.fps ? ` • ${format.fps}fps` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      if (audioOnlyFormats.length > 0) {
+        html += `<h4>Audio Only (Top 3)</h4>`;
+        audioOnlyFormats.slice(0, 3).forEach(format => {
+          const sizeInMB = (parseInt(format.contentLength) / 1024 / 1024).toFixed(2);
+          html += `
+            <div class="format">
+              <div class="format-info">
+                <div class="format-quality">[${format.itag}] ${format.quality}</div>
+                <div class="format-details">
+                  ${format.mimeType} • ${sizeInMB} MB
+                  ${format.bitrate ? ` • ${(format.bitrate / 1000).toFixed(0)}kbps` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      html += '</div>';
+      resultDiv.innerHTML = html;
+    }
+
+    window.copyVideoId = function(videoId, itag) {
+      const text = `Video ID: ${videoId}, Format itag: ${itag}`;
+      navigator.clipboard.writeText(text);
+      alert('Format info copied to clipboard!');
+    };
+
+    // Auto-load on page load with default URL
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => fetchMetadata(), 500);
+    });
+  </script>
+</body>
+</html>

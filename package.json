@@ -13,7 +13,11 @@
     "publish": true
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "hono": "4.8.2",
+    "quickjs-emscripten": "^0.31.0",
+    "quickjs-emscripten-core": "^0.31.0",
+    "quickjs-for-quickjs": "^0.31.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "youtubei.js": "^16.0.1"
