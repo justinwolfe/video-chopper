@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import "./App.css";
+// Use browser build of youtubei.js for client-side URL deciphering
+import { Innertube } from 'youtubei.js/web.bundle';
 
 interface VideoFormat {
   itag: number;
@@ -73,13 +75,6 @@ function App() {
     }
   };
 
-  const handleCopyVideoId = () => {
-    if (videoInfo) {
-      navigator.clipboard.writeText(videoInfo.videoId);
-      alert('Video ID copied to clipboard!');
-    }
-  };
-
   const getBestFormat = () => {
     if (!videoInfo) return null;
 
@@ -89,6 +84,51 @@ function App() {
       .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
 
     return combined || videoInfo.formats[0];
+  };
+
+  const handleDownloadVideo = async (formatItag?: number) => {
+    if (!videoInfo) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Create Innertube instance in browser for URL deciphering
+      const yt = await Innertube.create();
+      const info = await yt.getInfo(videoInfo.videoId);
+
+      // Get the format to download
+      let format;
+      if (formatItag) {
+        format = info.streaming_data?.formats?.find(f => f.itag === formatItag) ||
+                 info.streaming_data?.adaptive_formats?.find(f => f.itag === formatItag);
+      } else {
+        // Get best video+audio format
+        format = info.chooseFormat({ quality: 'best', type: 'video+audio' });
+      }
+
+      if (!format) {
+        throw new Error('Format not found');
+      }
+
+      // Decipher the URL (works in browser!)
+      const downloadUrl = await format.decipher(yt.session.player);
+
+      // Download the video
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `${videoInfo.title.replace(/[^a-z0-9]/gi, '_')}.${format.mime_type.split('/')[1].split(';')[0]}`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+    } catch (err: any) {
+      setError(`Download error: ${err.message}`);
+      console.error('Download error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatBytes = (bytes: string) => {
@@ -162,19 +202,20 @@ function App() {
           </div>
 
           <div className="download-section">
-            <h3>Actions</h3>
+            <h3>Quick Download</h3>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
-                onClick={handleWatchOnYoutube}
+                onClick={() => handleDownloadVideo()}
+                disabled={loading}
                 className="download-button primary"
               >
-                ▶️ Watch on YouTube
+                {loading ? '⏳ Downloading...' : '⬇️ Download Best Quality'}
               </button>
               <button
-                onClick={handleCopyVideoId}
+                onClick={handleWatchOnYoutube}
                 className="download-button"
               >
-                📋 Copy Video ID
+                ▶️ Watch on YouTube
               </button>
             </div>
             {getBestFormat() && (
@@ -194,7 +235,7 @@ function App() {
           <div className="formats-section">
             <h3>Available Formats ({videoInfo.formats.length})</h3>
             <p style={{ fontSize: '14px', color: '#666', marginBottom: '15px' }}>
-              Use external tools like <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener noreferrer">yt-dlp</a> to download specific formats
+              Click download to get the video directly in your browser
             </p>
             <div className="formats-list">
               {videoInfo.formats
@@ -225,14 +266,12 @@ function App() {
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`yt-dlp -f ${format.itag} https://www.youtube.com/watch?v=${videoInfo.videoId}`);
-                        alert('Command copied! Paste in terminal to download this format.');
-                      }}
+                      onClick={() => handleDownloadVideo(format.itag)}
+                      disabled={loading}
                       className="download-link"
-                      style={{ fontSize: '14px', padding: '6px 12px' }}
+                      style={{ fontSize: '14px', padding: '8px 16px' }}
                     >
-                      📋 Copy Command
+                      {loading ? '⏳' : '⬇️'} Download
                     </button>
                   </div>
                 ))}
